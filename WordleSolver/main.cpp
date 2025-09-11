@@ -5,9 +5,11 @@
 #include <fstream>
 #include<vector>
 #include<string>
+#include<mutex>
+#include<thread>
+
 
 #include "Letter.h"
-//#include "wordleJSON.h"
 
 #define size_vec long unsigned int
 
@@ -15,6 +17,8 @@
 std::vector<Letter*> alphabet = initialize_alphabet();
 
 std::vector<std::string> words = {};
+
+std::mutex mutie;
 
 void record_word_score(std::string word)
 {
@@ -72,96 +76,70 @@ std::string find_first_word()
 	return best;
 }
 
+void threaded_elimination(char letter, int code, int position)
+{
+	switch(code)
+	{
+		//score 0 means wrong letter
+		case 0:
+			for(size_vec i = 0; i < words.size(); i++)
+			{
+				if(words[i].find(letter)!=std::string::npos)
+					words[i]="zzzzz";
+			}
+			break;
+		//score 1 means right letter wrong place
+		case 1:
+			for(size_vec i = 0; i < words.size(); i++)
+			{
+				if(words[i][position]==letter||words[i].find(letter)==std::string::npos)
+					words[i]="zzzzz";	
+			}
+			break;
+		//score 2 means right letter right place
+		case 2:
+			for(size_vec i = 0; i < words.size(); i++)
+			{		
+				if(words[i][position]!=letter)
+					words[i]="zzzzz";
+			}
+			break;
+		//score 3 means that this letter is correct elsewhere in the word and does not repeat.
+		case 3:
+			for(size_vec i = 0; i < words.size(); i++)
+			{
+				if(words[i][position]==letter)
+					words[i]="zzzzz";	
+			}
+			break;
+	}
+				
+
+}
+
 std::string find_best_guess(std::string prev_guess, std::vector<int> score)
 {	
+	std::thread t0(threaded_elimination,prev_guess[0],score[0],0);
+	std::thread t1(threaded_elimination,prev_guess[1],score[1],1);
+	std::thread t2(threaded_elimination,prev_guess[2],score[2],2);
+	std::thread t3(threaded_elimination,prev_guess[3],score[3],3);
+	std::thread t4(threaded_elimination,prev_guess[4],score[4],4);
 	
-	bool contains = false;
-	char letter;
-	for(size_vec l = 0; l < 5; l++)
-	{
-		letter = prev_guess[l];
-		//score 2 means right letter right place
-		if(score[l]==2)
+	t0.join();
+	t1.join();
+	t2.join();
+	t3.join();
+	t4.join();
+	
+	for(std::vector<std::string>::iterator w = words.begin(); w != words.end();)
+	{			
+		if(w->compare("zzzzz")==0)
 		{
-			for(std::vector<std::string>::iterator w = words.begin(); w != words.end();)
-			{
-				
-				if(w->at(l)!=letter)
-				{
-					w=words.erase(w);
-				}else
-				{
-					++w;
-				}
-			}
-		}
-		//score 1 means right letter wrong place
-		else if(score[l]==1)
-		{
-			for(std::vector<std::string>::iterator w = words.begin(); w != words.end();)
-			{
-				contains = false;
-				for(int i = 0; i<5; i++)
-				{
-					if(w->at(i)==letter)
-					{
-						if(i==l)
-						{
-							contains=false;
-							break;
-						}else
-							contains=true;
-					}
-				}
-				if(contains)
-					++w;
-				else
-					w=words.erase(w);
-			}	
-		}
-		//score 0 means wrong letter
-		else if(score[l]==0)
-		{
-			for(std::vector<std::string>::iterator w = words.begin(); w != words.end();)
-			{
-				contains = false;
-				for(size_vec i = 0; i < 5; i++)
-				{
-					if(w->at(i)==letter)
-					{
-						w=words.erase(w);
-						contains = true;
-						break;
-					}	
-				}
-				if(!contains)
-					++w;
-			}
-		}
-		//score 3 means that this letter is correct elsewhere in the word and does not repeat.
-		else if(score[l]==3)
-		{
-			for(std::vector<std::string>::iterator w = words.begin(); w != words.end();)
-			{
-				
-				if(w->at(l)==letter)
-				{
-					w=words.erase(w);
-				}else
-				{
-					++w;
-				}
-			}
-		}
-		else
-		{
-			std::cout << "Error: code not valid\n";
-			break;
+			w=words.erase(w);
+		}else{
+			++w;
 		}
 	}
-	
-	
-	
 	
 
 	std::string best = "zzzzz";
@@ -179,9 +157,9 @@ int main()
 	scan_words("Data/wordleDictionary.txt");
 	std::string guess = find_first_word();
 	std::vector<int> scores = {0,0,0,0,0};
-	bool win = false;
+	
 	for(int i = 0; i < 6; i++)
-	{
+	{        
 		std::cout << "input score for guess #" << i+1 << ':' << guess + '\n';
 		
 		std::cout << "#1:";
@@ -199,11 +177,17 @@ int main()
 		std::cout << "#5:";
 		std::cin >> scores[4];
 		
+		if(scores[0]==2&&scores[1]==2&&scores[2]==2&&scores[3]==2&&scores[4]==2)
+        {
+            std::cout << "You won on round #" << i+1 << " with word: " << guess << "!!!\nPlay again tommorow.\n";
+			break;
+        }
+		
 		guess = find_best_guess(guess,scores);
 		
 		if(words.size()==1)
 		{
-			std::cout << "You won on round #" << i+1 << "with word: " << guess << "!!!\nPlay again tommorow.\n";
+			std::cout << "You won on round #" << i+2 << " with word: " << guess << "!!!\nPlay again tommorow.\n";
 			break;
 		}
 			
