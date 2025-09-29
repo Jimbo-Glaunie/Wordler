@@ -39,16 +39,24 @@ void scan_words(std::string file)
 }
 
 
-bool no_letters_twice(std::string word)
+int no_letters_twice(std::string word)
 {
-	for(long unsigned int i = 0; i < word.size(); i++)
+	int retVal=0;
+	std::vector<int> count = {0,0,0,0,0};
+	for(size_vec i = 0; i < word.size(); i++)
 	{
 		for(long unsigned int n = i; n < word.size(); n++)
 		{
-			if(word[n]==word[i]&&i!=n) return false;
+			if(word[n]==word[i]) 
+				count[i]++;
 		}
 	}
-	return true;
+	for(size_vec i = 0; i < word.size(); i++){
+		if(count[i]>retVal){
+			retVal=count[i];
+		}
+	}
+	return retVal;
 }
 
 int get_word_score(std::string word)
@@ -58,8 +66,7 @@ int get_word_score(std::string word)
 	{
 		score+=alphabet[word[i]-97]->position_scores[i];
 	}
-	if(!no_letters_twice(word))
-		score-=200;
+	score-=no_letters_twice(word)*500;
 	return score;
 }
 
@@ -73,10 +80,21 @@ std::string find_first_word()
 		if(get_word_score(best) <= get_word_score(words[w]) && no_letters_twice(words[w]))
 			best = words[w];
 	}
+	std::cout << no_letters_twice(best) << '\n';
 	return best;
 }
 
-void threaded_elimination(char letter, int code, int position)
+int word_has(std::string word,char letter)
+{
+	int count = 0;
+	for(size_vec n = 0; n< word.size(); n++)
+	{
+		if(word[n]==letter)count++;
+	}
+	return count;
+}
+
+void threaded_elimination(char letter, int code, int position,std::string guess)
 {
 	switch(code)
 	{
@@ -108,7 +126,7 @@ void threaded_elimination(char letter, int code, int position)
 		case 3:
 			for(size_vec i = 0; i < words.size(); i++)
 			{
-				if(words[i][position]==letter)
+				if(words[i][position]==letter||word_has(words[i],letter)>word_has(guess,letter))
 					words[i]="zzzzz";	
 			}
 			break;
@@ -119,11 +137,11 @@ void threaded_elimination(char letter, int code, int position)
 
 std::string find_best_guess(std::string prev_guess, std::vector<int> score)
 {	
-	std::thread t0(threaded_elimination,prev_guess[0],score[0],0);
-	std::thread t1(threaded_elimination,prev_guess[1],score[1],1);
-	std::thread t2(threaded_elimination,prev_guess[2],score[2],2);
-	std::thread t3(threaded_elimination,prev_guess[3],score[3],3);
-	std::thread t4(threaded_elimination,prev_guess[4],score[4],4);
+	std::thread t0(threaded_elimination,prev_guess[0],score[0],0,prev_guess);
+	std::thread t1(threaded_elimination,prev_guess[1],score[1],1,prev_guess);
+	std::thread t2(threaded_elimination,prev_guess[2],score[2],2,prev_guess);
+	std::thread t3(threaded_elimination,prev_guess[3],score[3],3,prev_guess);
+	std::thread t4(threaded_elimination,prev_guess[4],score[4],4,prev_guess);
 	
 	t0.join();
 	t1.join();
@@ -160,7 +178,7 @@ int main()
 	
 	for(int i = 0; i < 6; i++)
 	{        
-		std::cout << "input score for guess #" << i+1 << ':' << guess + '\n';
+		std::cout << words.size() << " possible words remaining. input score for guess #" << i+1 << ": " << guess + '\n';
 		
 		std::cout << "#1:";
 		std::cin >> scores[0];
